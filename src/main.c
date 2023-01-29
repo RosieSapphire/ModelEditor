@@ -186,12 +186,11 @@ int main(void)
 									sizeof(
 									nk_bool)
 									* 3 *
-									numTris);
+									numTris)
+								;
 							
-							*(vertsSelected +
-									(j * 3)
-									+ k) =
-								1;
+							vertsSelected[(j * 3)
+								+ k] = 1;
 						}
 
 						for(int i = 0; i < 3 * numTris;
@@ -286,27 +285,39 @@ int main(void)
 
 		nk_layout_row_dynamic(ctx, 30, 1);
 
-		static bool xDownLast = 0;
-		bool xDownNow = glfwGetKey(win, GLFW_KEY_X);
-		bool xPress = xDownNow && !xDownLast;
-		xDownLast = xDownNow;
+		static bool axisDownLast[3] = {0};
+		bool axisDownNow[3] = {
+			glfwGetKey(win, GLFW_KEY_X),
+			glfwGetKey(win, GLFW_KEY_Y),
+			glfwGetKey(win, GLFW_KEY_Z),
+		};
+
+		bool axisPress[3] = {
+			axisDownNow[0] && !axisDownLast[0],
+			axisDownNow[1] && !axisDownLast[1],
+			axisDownNow[2] && !axisDownLast[2],
+		};
+
+		memcpy(axisDownLast, axisDownNow, sizeof(bool) * 3);
 
 		static int mouseXOnPress = 0;
-		static bool rotatingX = 0;
+		static bool isTranslating[3] = {0};
 		static float startPos;
-		if(xPress) {
-			double x;
-			glfwGetCursorPos(win, &x, NULL);
-			mouseXOnPress = (int)x;
-			startPos = tris->verts[currentVertex].pos[0];
-			rotatingX = !rotatingX;
-		}
 
-		if(rotatingX) {
+		for(int i = 0; i < 3; i++) {
 			double x;
 			glfwGetCursorPos(win, &x, NULL);
-			tris->verts[currentVertex].pos[0] = startPos -
-				((x - mouseXOnPress) * -0.02f);
+
+			if(axisPress[i]) {
+				mouseXOnPress = (int)x;
+				startPos = tris->verts[currentVertex].pos[i];
+				isTranslating[i] = !isTranslating[i];
+			}
+
+			if(isTranslating[i]) {
+				tris->verts[currentVertex].pos[i] = startPos -
+					((x - mouseXOnPress) * -0.02f);
+			}
 		}
 
 		char vsStr[512];
