@@ -7,7 +7,7 @@ CFLAGS=-std=c99 -Wall -Wextra -g3 -Iinclude
 SRC=main.c mat4.c shader.c vec4.c vec3.c
 OBJ=main.o mat4.o shader.o vec4.o vec3.o
 
-BIN=nuklear_test
+BIN=model_editor
 
 all: $(OBJ)
 	clear
