@@ -384,19 +384,21 @@ int main(void)
 			xLook = yLook = 0.0f;
 		}
 
-		float xDelta = (float)glfwGetKey(win, GLFW_KEY_D) * deltaTime;
-		xDelta -= (float)glfwGetKey(win, GLFW_KEY_A) * deltaTime;
+		static double mouseXLast = 0, mouseYLast = 0;
+		double mouseXNow, mouseYNow;
+		glfwGetCursorPos(win, &mouseXNow, &mouseYNow);
+		double mouseXDelta = (mouseXNow - mouseXLast) * 0.01;
+		double mouseYDelta = (mouseYNow - mouseYLast) * 0.01;
+		mouseXLast = mouseXNow;
+		mouseYLast = mouseYNow;
 
-		float yDelta = (float)glfwGetKey(win, GLFW_KEY_S) * deltaTime;
-		yDelta -= (float)glfwGetKey(win, GLFW_KEY_W) * deltaTime;
+		bool rightClickDownNow =
+			glfwGetMouseButton(win, GLFW_MOUSE_BUTTON_RIGHT);
 
-		if(glfwGetKey(win, GLFW_KEY_LEFT_SHIFT)) {
-			xDelta *= 2;
-			yDelta *= 2;
+		if(rightClickDownNow) {
+			xLook += mouseXDelta;
+			yLook += mouseYDelta;
 		}
-
-		xLook += xDelta;
-		yLook += yDelta;
 
 		nk_end(ctx);
 
