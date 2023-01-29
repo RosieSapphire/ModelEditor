@@ -109,25 +109,7 @@ int main(void)
 		char vert_list_str[64];
 		sprintf(vert_list_str, "Triangle List: (%d)", numTris);
 
-		for(int i = 0; i < numTris; i++) {
-			Triangle *tri = tris + i;
-
-			Vec3 u, v;
-			Vec3Subtract(tri->verts[1].pos,
-					tri->verts[0].pos, u);
-			Vec3Subtract(tri->verts[2].pos,
-					tri->verts[0].pos, v);
-			Vec3Normalize(u);
-			Vec3Normalize(v);
-
-			Vec3 norm;
-			Vec3Cross(u, v, norm);
-			Vec3Normalize(norm);
-
-			for(int j = 0; j < 3; j++) {
-				Vec3Copy(norm, tri->verts[j].norm);
-			}
-		}
+		TrianglesCalculateNormals(tris, numTris);
 
 		nk_glfw3_new_frame(&glfw);
 
@@ -374,7 +356,7 @@ int main(void)
 			}
 		}
 
-		nk_layout_row_dynamic(ctx, 30, 2);
+		nk_layout_row_dynamic(ctx, 30, 1);
 
 		static nk_bool showNormals = 1;
 		nk_checkbox_label(ctx, "Show Normals", &showNormals);
@@ -382,6 +364,10 @@ int main(void)
 		static nk_bool highlightVerts = 1;
 		nk_checkbox_label(ctx, "Highlight Vertices", &highlightVerts);
 
+		static nk_bool backfaceCulling = 1;
+		nk_checkbox_label(ctx, "Backface Culling", &backfaceCulling);
+
+		nk_layout_row_dynamic(ctx, 30, 3);
 		static float xLook = 0.0f, yLook = 0.0f;
 		if(nk_button_label(ctx, "Reset Rotation")) {
 			xLook = yLook = 0.0f;
@@ -413,10 +399,14 @@ int main(void)
 		Mat4Identity(model);
 		Mat4RotateY(model, xLook);
 		Mat4RotateX(model, yLook);
+		
+		glDisable(GL_CULL_FACE);
 
-		glEnable(GL_CULL_FACE);
-		glCullFace(GL_BACK);
-		glFrontFace(GL_CCW);
+		if(backfaceCulling) {
+			glEnable(GL_CULL_FACE);
+			glCullFace(GL_BACK);
+			glFrontFace(GL_CCW);
+		}
 
 		glEnable(GL_DEPTH_TEST);
 		glDepthFunc(GL_LESS);

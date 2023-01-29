@@ -7,4 +7,6 @@ typedef struct {
 	Vertex verts[3];
 } Triangle;
 
+void TrianglesCalculateNormals(Triangle *tris, int numTris);
+
 #endif
