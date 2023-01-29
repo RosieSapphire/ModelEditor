@@ -4,6 +4,7 @@
 #include <stdbool.h>
 
 #include "shader.h"
+#include "triangle.h"
 
 #define NK_INCLUDE_DEFAULT_FONT
 #define NK_INCLUDE_DEFAULT_ALLOCATOR
@@ -18,15 +19,6 @@
 
 #define MAX_VERTEX_BUFFER 512 * 1024
 #define MAX_ELEMENT_BUFFER 128 * 1024
-
-typedef struct {
-	Vec3 pos;
-	Vec3 norm;
-} Vertex;
-
-typedef struct {
-	Vertex verts[3];
-} Triangle;
 
 int main(void)
 {
@@ -103,12 +95,12 @@ int main(void)
 	Mat4 proj;
 	Mat4Perspective(proj, 60.0f, aspectRatio, 0.1f, 8.0f);
 
-	float timeLast = glfwGetTime();
+	// float timeLast = glfwGetTime();
 	while (!glfwWindowShouldClose(win))
 	{
-		float timeNow = glfwGetTime();
-		float deltaTime = timeNow - timeLast;
-		timeLast = timeNow;
+		// float timeNow = glfwGetTime();
+		// float deltaTime = timeNow - timeLast;
+		// timeLast = timeNow;
 
 		glfwPollEvents();
 		if(glfwGetKey(win, GLFW_KEY_ESCAPE))
