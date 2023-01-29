@@ -149,7 +149,7 @@ int main(void)
 			memset(tris + (numTris - 1), 0, sizeof(Triangle));
 		}
 
-		nk_layout_row_dynamic(ctx, 320, 1);
+		nk_layout_row_dynamic(ctx, 1024, 1);
 		if(nk_group_begin(ctx, "Test", NK_WINDOW_BORDER)) {
 			for(int j = 0; j < numTris; j++) {
 				char vert_str[32];
@@ -185,6 +185,7 @@ int main(void)
 					}
 					}
 	
+					nk_layout_row_dynamic(ctx, 26, 2);
 					if(nk_button_label(ctx, "Delete")) {
 						numTris--;
 						if(numTris) {
@@ -304,7 +305,7 @@ int main(void)
 		static nk_bool showNormals = 1;
 		nk_checkbox_label(ctx, "Show Normals", &showNormals);
 
-		static nk_bool highlightVerts = 0;
+		static nk_bool highlightVerts = 1;
 		nk_checkbox_label(ctx, "Highlight Vertices", &highlightVerts);
 
 		static float xLook = 0.0f, yLook = 0.0f;
@@ -388,9 +389,9 @@ int main(void)
 				Vec3Copy(v->norm, normVec);
 
 				Vec3Copy(normVec, line->norm);
-				line->norm[0] = 1.0f - line->norm[0];
-				line->norm[1] = 1.0f - line->norm[1];
-				line->norm[2] = 1.0f - line->norm[2];
+				line->norm[0] = 1.0f - fabs(line->norm[0]);
+				line->norm[1] = 1.0f - fabs(line->norm[1]);
+				line->norm[2] = 1.0f - fabs(line->norm[2]);
 
 				memcpy(line + 1, line, sizeof(Vertex));
 				Vec3Scale(normVec, 0.2f);
