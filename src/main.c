@@ -33,7 +33,7 @@ int main(void)
 	struct nk_glfw glfw = {0};
 	static GLFWwindow *win;
 	struct nk_context *ctx;
-	
+
 	glfwInit();
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
@@ -62,6 +62,8 @@ int main(void)
 	struct nk_colorf bg = {0.10f, 0.18f, 0.24f, 1.0f};
 
 	int numTris = 1;
+	nk_bool *vertsSelected = calloc(numTris * 3, sizeof(nk_bool));
+	
 	Triangle *tris = calloc(numTris, sizeof(Triangle));
 	tris->verts[0].pos[0] = -0.5f;
 	tris->verts[0].pos[1] = -0.5f;
@@ -137,7 +139,7 @@ int main(void)
 
 		nk_glfw3_new_frame(&glfw);
 
-		if(!nk_begin(ctx, vert_list_str, nk_rect(0, 0, 320, height),
+		if(!nk_begin(ctx, vert_list_str, nk_rect(0, 0, 420, height),
 					NK_WINDOW_BORDER |
 					NK_WINDOW_TITLE))
 			continue;
@@ -147,8 +149,17 @@ int main(void)
 			numTris++;
 			tris = realloc(tris, sizeof(Triangle) * numTris);
 			memset(tris + (numTris - 1), 0, sizeof(Triangle));
+
+			vertsSelected = realloc(
+					vertsSelected,
+					sizeof(nk_bool)
+					* 3 * numTris);
+			
+			memset(vertsSelected, 0,
+					sizeof(nk_bool) * 3 * numTris);
 		}
 
+		static int currentVertex = 0;
 		nk_layout_row_dynamic(ctx, 1024, 1);
 		if(nk_group_begin(ctx, "Test", NK_WINDOW_BORDER)) {
 			for(int j = 0; j < numTris; j++) {
@@ -158,30 +169,52 @@ int main(void)
 							NK_MAXIMIZED)) {
 					nk_layout_row_dynamic(ctx, 26, 4);
 					for(int k = 0; k < 3; k++) {
-					nk_label(ctx, "Position:",
-							NK_TEXT_LEFT);
+					if(nk_selectable_label(ctx, "Position:",
+							NK_TEXT_LEFT,
+							vertsSelected + k +
+							(j * 3))) {
+						int totalSelected = 0;
+						for(int i = 0; i < 3 * numTris;
+								i++) {
+						totalSelected +=
+							vertsSelected[i];
+						}
+
+						if(totalSelected > 1) {
+							memset(vertsSelected,
+									0,
+									sizeof(
+									nk_bool)
+									* 3 *
+									numTris);
+							
+							*(vertsSelected +
+									(j * 3)
+									+ k) =
+								1;
+						}
+
+						for(int i = 0; i < 3 * numTris;
+								i++) {
+						if(vertsSelected[i]) {
+							currentVertex = i;
+							break;
+						}
+						}
+					}
 		
 					for(int i = 0; i < 3; i++) {
 						float *val_cur =
 						&tris[j].verts[k].pos[i];
 			
-						nk_slider_float(ctx, -0.5f,
-								val_cur, 0.5f,
-								0.1f);
-					}
-					}
+						const char *names[3] = {
+							"X", "Y", "Z"
+						};
 
-					for(int k = 0; k < 3; k++) {
-					nk_label(ctx, "Normal:",
-							NK_TEXT_LEFT);
-		
-					for(int i = 0; i < 3; i++) {
-						float *val_cur =
-						&tris[j].verts[k].norm[i];
-			
-						nk_property_float(ctx, "",
-								-16, val_cur,
-								16, 0.1f, 0);
+						nk_property_float(ctx, names[i],
+								-16.0f, val_cur,
+								16.0f, 0.1f,
+								1.0f);
 					}
 					}
 	
@@ -210,6 +243,15 @@ int main(void)
 								Triangle));
 							numTris++;
 						}
+
+						vertsSelected = realloc(
+								vertsSelected,
+								sizeof(nk_bool)
+								* 3 * numTris);
+
+						memset(vertsSelected, 0,
+							sizeof(nk_bool) *
+							3 * numTris);
 					}
 
 					if(nk_button_label(ctx, "Duplicate")) {
@@ -241,6 +283,35 @@ int main(void)
 		glBufferData(GL_ARRAY_BUFFER, sizeof(Triangle) * numTris,
 				tris, GL_DYNAMIC_DRAW);
 		glBindBuffer(GL_ARRAY_BUFFER, 0);
+
+		nk_layout_row_dynamic(ctx, 30, 1);
+
+		static bool xDownLast = 0;
+		bool xDownNow = glfwGetKey(win, GLFW_KEY_X);
+		bool xPress = xDownNow && !xDownLast;
+		xDownLast = xDownNow;
+
+		static int mouseXOnPress = 0;
+		static bool rotatingX = 0;
+		static float startPos;
+		if(xPress) {
+			double x;
+			glfwGetCursorPos(win, &x, NULL);
+			mouseXOnPress = (int)x;
+			startPos = tris->verts[currentVertex].pos[0];
+			rotatingX = !rotatingX;
+		}
+
+		if(rotatingX) {
+			double x;
+			glfwGetCursorPos(win, &x, NULL);
+			tris->verts[currentVertex].pos[0] = startPos -
+				((x - mouseXOnPress) * -0.02f);
+		}
+
+		char vsStr[512];
+		sprintf(vsStr, "Vertex Selected: %d", currentVertex);
+		nk_label(ctx, vsStr, NK_TEXT_LEFT);
 
 		nk_layout_row_dynamic(ctx, 30, 3);
 		if(nk_button_label(ctx, "New Model")) {
@@ -431,6 +502,7 @@ int main(void)
 
 	shaderUnload(shader);
 	
+	free(vertsSelected);
 	free(tris);
 	nk_glfw3_shutdown(&glfw);
 	glfwTerminate();
