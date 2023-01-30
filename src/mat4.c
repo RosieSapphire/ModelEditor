@@ -19,6 +19,8 @@ void Mat4Identity(Mat4 m)
 
 void Mat4Perspective(Mat4 m, float fovDeg, float aspect, float near, float far)
 {
+	Mat4Zero(m);
+
 	float fov_itan = 1.0f / tanf(fovDeg * DEG_TO_RAD * 0.5f);
 	m[0][0] = fov_itan / aspect;
 	m[1][1] = fov_itan;
@@ -31,6 +33,8 @@ void Mat4Perspective(Mat4 m, float fovDeg, float aspect, float near, float far)
 
 void Mat4Ortho(Mat4 m, float l, float r, float t, float b)
 {
+	Mat4Zero(m);
+
 	float rl = 1 / (r - l);
 	float tb = 1 / (t - b);
 	m[0][0] = 2 * rl;
@@ -137,6 +141,8 @@ void Mat4Multiply(Mat4 a, Mat4 b, Mat4 out)
 
 void Mat4FromQuaternion(Vec4 q, Mat4 out)
 {
+	Mat4Zero(out);
+
 	float norm = sqrtf(Vec4Dot(q, q));
 	float s = 0.0f;
 	if(norm > 0) {
@@ -166,6 +172,8 @@ void Mat4FromQuaternion(Vec4 q, Mat4 out)
                      
 void Mat4LookAt(Mat4 m, Vec3 eye, Vec3 focus)
 {
+	Mat4Zero(m);
+
 	Vec3 f;
 	Vec3Subtract(focus, eye, f);
 	Vec3Normalize(f);
