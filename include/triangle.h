@@ -8,5 +8,6 @@ typedef struct {
 } Triangle;
 
 void TrianglesCalculateNormals(Triangle *tris, int numTris);
+void TriangleInitDefault(Triangle *t);
 
 #endif
