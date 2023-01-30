@@ -20,12 +20,17 @@
 #define MAX_VERTEX_BUFFER 512 * 1024
 #define MAX_ELEMENT_BUFFER 128 * 1024
 
+static struct nk_glfw glfw = {0};
+static GLFWwindow *win;
+static struct nk_context *ctx;
+
+static int currentVertex = 0;
+
+static void TriangleListPanel(Triangle *tris, int numTris,
+		nk_bool *vertsSelected);
+
 int main(void)
 {
-	struct nk_glfw glfw = {0};
-	static GLFWwindow *win;
-	struct nk_context *ctx;
-
 	glfwInit();
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
@@ -57,17 +62,7 @@ int main(void)
 	nk_bool *vertsSelected = calloc(numTris * 3, sizeof(nk_bool));
 	
 	Triangle *tris = calloc(numTris, sizeof(Triangle));
-	tris->verts[0].pos[0] = -0.5f;
-	tris->verts[0].pos[1] = -0.5f;
-	tris->verts[0].pos[2] =  0.0f;
-
-	tris->verts[1].pos[0] =  0.5f;
-	tris->verts[1].pos[1] = -0.5f;
-	tris->verts[1].pos[2] =  0.0f;
-
-	tris->verts[2].pos[0] =  0.0f;
-	tris->verts[2].pos[1] =  0.5f;
-	tris->verts[2].pos[2] =  0.0f;
+	TriangleInitDefault(tris);
 
 	GLuint vao;
 	glGenVertexArrays(1, &vao);
@@ -133,124 +128,9 @@ int main(void)
 					sizeof(nk_bool) * 3 * numTris);
 		}
 
-		static int currentVertex = 0;
 		nk_layout_row_dynamic(ctx, 1024, 1);
-		if(nk_group_begin(ctx, "Test", NK_WINDOW_BORDER)) {
-			for(int j = 0; j < numTris; j++) {
-				char vert_str[32];
-				sprintf(vert_str, "Triangle %d", j);
-				if(nk_tree_push(ctx, NK_TREE_NODE, vert_str,
-							NK_MAXIMIZED)) {
-					nk_layout_row_dynamic(ctx, 26, 4);
-					for(int k = 0; k < 3; k++) {
-					if(nk_selectable_label(ctx, "Position:",
-							NK_TEXT_LEFT,
-							vertsSelected + k +
-							(j * 3))) {
-						int totalSelected = 0;
-						for(int i = 0; i < 3 * numTris;
-								i++) {
-						totalSelected +=
-							vertsSelected[i];
-						}
 
-						if(totalSelected > 1) {
-							memset(vertsSelected,
-									0,
-									sizeof(
-									nk_bool)
-									* 3 *
-									numTris)
-								;
-							
-							vertsSelected[(j * 3)
-								+ k] = 1;
-						}
-
-						for(int i = 0; i < 3 * numTris;
-								i++) {
-						if(vertsSelected[i]) {
-							currentVertex = i;
-							break;
-						}
-						}
-					}
-		
-					for(int i = 0; i < 3; i++) {
-						float *val_cur =
-						&tris[j].verts[k].pos[i];
-			
-						const char *names[3] = {
-							"X", "Y", "Z"
-						};
-
-						nk_property_float(ctx, names[i],
-								-16.0f, val_cur,
-								16.0f, 0.1f,
-								1.0f);
-					}
-					}
-	
-					nk_layout_row_dynamic(ctx, 26, 2);
-					if(nk_button_label(ctx, "Delete")) {
-						numTris--;
-						if(numTris) {
-							for(int i = j;
-								i < numTris + 1;
-									i++) {
-								memcpy(tris + i,
-									tris
-									+ i + 1,
-									sizeof(
-									Triangle
-									));
-							}
-	
-							tris = realloc(tris,
-								numTris *
-								sizeof(
-								Triangle));
-						} else {
-							memset(tris, 0,
-								sizeof(
-								Triangle));
-							numTris++;
-						}
-
-						vertsSelected = realloc(
-								vertsSelected,
-								sizeof(nk_bool)
-								* 3 * numTris);
-
-						memset(vertsSelected, 0,
-							sizeof(nk_bool) *
-							3 * numTris);
-					}
-
-					if(nk_button_label(ctx, "Duplicate")) {
-						numTris++;
-						tris = realloc(tris,
-							numTris *
-							sizeof(
-							Triangle));
-
-						for(int i = numTris - 1;
-								i > j;
-								i--) {
-							memcpy(tris + i,
-								tris + i - 1,
-								sizeof(Triangle)
-							      );
-						}
-					}
-	
-					nk_tree_pop(ctx);
-				}
-	
-			}
-
-			nk_group_end(ctx);
-		}
+		TriangleListPanel(tris, numTris, vertsSelected);
 
 		glBindBuffer(GL_ARRAY_BUFFER, vbo);
 		glBufferData(GL_ARRAY_BUFFER, sizeof(Triangle) * numTris,
@@ -416,9 +296,9 @@ int main(void)
 
 		glBindVertexArray(vao);
 		shaderUse(shader);
+		shaderUniformMat4(shader, "model", model);
 		shaderUniformMat4(shader, "proj", proj);
 		shaderUniformMat4(shader, "view", view);
-		shaderUniformMat4(shader, "model", model);
 		// shaderUniform3f(shader, "color", 1.0f, 0.5f, 0.25f);
 		glDrawArrays(GL_TRIANGLES, 0, numTris * 3);
 
@@ -502,4 +382,129 @@ int main(void)
 	nk_glfw3_shutdown(&glfw);
 	glfwTerminate();
 	return 0;
+}
+
+static void TriangleListPanel(Triangle *tris, int numTris,
+		nk_bool *vertsSelected)
+{
+	assert(tris);
+	assert(numTris);
+	assert(vertsSelected);
+	if(nk_group_begin(ctx, "Test", NK_WINDOW_BORDER)) {
+		for(int j = 0; j < numTris; j++) {
+			char vert_str[32];
+			sprintf(vert_str, "Triangle %d", j);
+			if(nk_tree_push(ctx, NK_TREE_NODE, vert_str,
+						NK_MAXIMIZED)) {
+				nk_layout_row_dynamic(ctx, 26, 4);
+				for(int k = 0; k < 3; k++) {
+				if(nk_selectable_label(ctx, "Position:",
+						NK_TEXT_LEFT,
+						vertsSelected + k +
+						(j * 3))) {
+					int totalSelected = 0;
+					for(int i = 0; i < 3 * numTris;
+							i++) {
+					totalSelected +=
+						vertsSelected[i];
+					}
+
+					if(totalSelected > 1) {
+						memset(vertsSelected,
+								0,
+								sizeof(
+								nk_bool)
+								* 3 *
+								numTris)
+							;
+						
+						vertsSelected[(j * 3)
+							+ k] = 1;
+					}
+
+					for(int i = 0; i < 3 * numTris;
+							i++) {
+					if(vertsSelected[i]) {
+						currentVertex = i;
+						break;
+					}
+					}
+				}
+	
+				for(int i = 0; i < 3; i++) {
+					float *val_cur =
+					&tris[j].verts[k].pos[i];
+		
+					const char *names[3] = {
+						"X", "Y", "Z"
+					};
+
+					nk_property_float(ctx, names[i],
+							-16.0f, val_cur,
+							16.0f, 0.1f,
+							1.0f);
+				}
+				}
+	
+				nk_layout_row_dynamic(ctx, 26, 2);
+				if(nk_button_label(ctx, "Delete")) {
+					numTris--;
+					if(numTris) {
+						for(int i = j;
+							i < numTris + 1;
+								i++) {
+							memcpy(tris + i,
+								tris
+								+ i + 1,
+								sizeof(
+								Triangle
+								));
+						}
+	
+						tris = realloc(tris,
+							numTris *
+							sizeof(
+							Triangle));
+					} else {
+						memset(tris, 0,
+							sizeof(
+							Triangle));
+						numTris++;
+					}
+
+					vertsSelected = realloc(
+							vertsSelected,
+							sizeof(nk_bool)
+							* 3 * numTris);
+
+					memset(vertsSelected, 0,
+						sizeof(nk_bool) *
+						3 * numTris);
+				}
+
+				if(nk_button_label(ctx, "Duplicate")) {
+					numTris++;
+					tris = realloc(tris,
+						numTris *
+						sizeof(
+						Triangle));
+
+					for(int i = numTris - 1;
+							i > j;
+							i--) {
+						memcpy(tris + i,
+							tris + i - 1,
+							sizeof(Triangle)
+						      );
+					}
+				}
+	
+				nk_tree_pop(ctx);
+			}
+	
+		}
+
+		nk_group_end(ctx);
+	}
+
 }
