@@ -1,4 +1,4 @@
 .cache/
-nuklear_test
+model_editor
 *.json
 *.mdl
