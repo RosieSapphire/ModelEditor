@@ -517,10 +517,10 @@ enum nk_symbol_type {
     NK_SYMBOL_CIRCLE_OUTLINE,
     NK_SYMBOL_RECT_SOLID,
     NK_SYMBOL_RECT_OUTLINE,
-    NK_SYMBOL_TRIANGLE_UP,
-    NK_SYMBOL_TRIANGLE_DOWN,
-    NK_SYMBOL_TRIANGLE_LEFT,
-    NK_SYMBOL_TRIANGLE_RIGHT,
+    NK_SYMBOL_triangle_UP,
+    NK_SYMBOL_triangle_DOWN,
+    NK_SYMBOL_triangle_LEFT,
+    NK_SYMBOL_triangle_RIGHT,
     NK_SYMBOL_PLUS,
     NK_SYMBOL_MINUS,
     NK_SYMBOL_MAX
@@ -948,7 +948,7 @@ NK_API void nk_input_end(struct nk_context*);
 /// #### Usage
 /// To draw all draw commands accumulated over a frame you need your own render
 /// backend able to draw a number of 2D primitives. This includes at least
-/// filled and stroked rectangles, circles, text, lines, triangles and scissors.
+/// filled and stroked rectangles, circles, text, lines, struct triangles and scissors.
 /// As soon as this criterion is met you can iterate over each draw command
 /// and execute each draw command in a interpreter like fashion:
 ///
@@ -4433,7 +4433,7 @@ enum nk_command_type {
     NK_COMMAND_ARC,
     NK_COMMAND_ARC_FILLED,
     NK_COMMAND_TRIANGLE,
-    NK_COMMAND_TRIANGLE_FILLED,
+    NK_COMMAND_triangle_FILLED,
     NK_COMMAND_POLYGON,
     NK_COMMAND_POLYGON_FILLED,
     NK_COMMAND_POLYLINE,
@@ -9143,7 +9143,7 @@ nk_fill_triangle(struct nk_command_buffer *b, float x0, float y0, float x1,
     }
 
     cmd = (struct nk_command_triangle_filled*)
-        nk_command_buffer_push(b, NK_COMMAND_TRIANGLE_FILLED, sizeof(*cmd));
+        nk_command_buffer_push(b, NK_COMMAND_triangle_FILLED, sizeof(*cmd));
     if (!cmd) return;
     cmd->a.x = (short)x0;
     cmd->a.y = (short)y0;
@@ -10648,7 +10648,7 @@ nk_convert(struct nk_context *ctx, struct nk_buffer *cmds,
                 nk_vec2(t->b.x, t->b.y), nk_vec2(t->c.x, t->c.y), t->color,
                 t->line_thickness);
         } break;
-        case NK_COMMAND_TRIANGLE_FILLED: {
+        case NK_COMMAND_triangle_FILLED: {
             const struct nk_command_triangle_filled *t = (const struct nk_command_triangle_filled*)cmd;
             nk_draw_list_fill_triangle(&ctx->draw_list, nk_vec2(t->a.x, t->a.y),
                 nk_vec2(t->b.x, t->b.y), nk_vec2(t->c.x, t->c.y), t->color);
@@ -14537,7 +14537,7 @@ static void stbtt__fill_active_edges_new(float *scanline, float *scanline_fill, 
                /*  area of the rectangle covered from sy0..y_crossing */
                area = sign * (y_crossing-sy0);
 
-               /*  area of the triangle (x_top,sy0), (x1+1,sy0), (x1+1,y_crossing) */
+               /*  area of the struct triangle (x_top,sy0), (x1+1,sy0), (x1+1,y_crossing) */
                scanline[x1] += stbtt__sized_triangle_area(area, x1+1 - x_top);
 
                /*  check if final y_crossing is blown up; no test case for this */
@@ -18330,8 +18330,8 @@ nk_style_from_table(struct nk_context *ctx, const struct nk_color *table)
     slider->cursor_normal   = nk_style_item_color(table[NK_COLOR_SLIDER_CURSOR]);
     slider->cursor_hover    = nk_style_item_color(table[NK_COLOR_SLIDER_CURSOR_HOVER]);
     slider->cursor_active   = nk_style_item_color(table[NK_COLOR_SLIDER_CURSOR_ACTIVE]);
-    slider->inc_symbol      = NK_SYMBOL_TRIANGLE_RIGHT;
-    slider->dec_symbol      = NK_SYMBOL_TRIANGLE_LEFT;
+    slider->inc_symbol      = NK_SYMBOL_triangle_RIGHT;
+    slider->dec_symbol      = NK_SYMBOL_triangle_LEFT;
     slider->cursor_size     = nk_vec2(16,16);
     slider->padding         = nk_vec2(2,2);
     slider->spacing         = nk_vec2(2,2);
@@ -18464,8 +18464,8 @@ nk_style_from_table(struct nk_context *ctx, const struct nk_color *table)
     property->label_normal  = table[NK_COLOR_TEXT];
     property->label_hover   = table[NK_COLOR_TEXT];
     property->label_active  = table[NK_COLOR_TEXT];
-    property->sym_left      = NK_SYMBOL_TRIANGLE_LEFT;
-    property->sym_right     = NK_SYMBOL_TRIANGLE_RIGHT;
+    property->sym_left      = NK_SYMBOL_triangle_LEFT;
+    property->sym_right     = NK_SYMBOL_triangle_RIGHT;
     property->userdata      = nk_handle_ptr(0);
     property->padding       = nk_vec2(4,4);
     property->border        = 1;
@@ -18537,9 +18537,9 @@ nk_style_from_table(struct nk_context *ctx, const struct nk_color *table)
     combo->label_normal     = table[NK_COLOR_TEXT];
     combo->label_hover      = table[NK_COLOR_TEXT];
     combo->label_active     = table[NK_COLOR_TEXT];
-    combo->sym_normal       = NK_SYMBOL_TRIANGLE_DOWN;
-    combo->sym_hover        = NK_SYMBOL_TRIANGLE_DOWN;
-    combo->sym_active       = NK_SYMBOL_TRIANGLE_DOWN;
+    combo->sym_normal       = NK_SYMBOL_triangle_DOWN;
+    combo->sym_hover        = NK_SYMBOL_triangle_DOWN;
+    combo->sym_active       = NK_SYMBOL_triangle_DOWN;
     combo->content_padding  = nk_vec2(4,4);
     combo->button_padding   = nk_vec2(0,4);
     combo->spacing          = nk_vec2(4,0);
@@ -18571,8 +18571,8 @@ nk_style_from_table(struct nk_context *ctx, const struct nk_color *table)
     tab->background         = nk_style_item_color(table[NK_COLOR_TAB_HEADER]);
     tab->border_color       = table[NK_COLOR_BORDER];
     tab->text               = table[NK_COLOR_TEXT];
-    tab->sym_minimize       = NK_SYMBOL_TRIANGLE_RIGHT;
-    tab->sym_maximize       = NK_SYMBOL_TRIANGLE_DOWN;
+    tab->sym_minimize       = NK_SYMBOL_triangle_RIGHT;
+    tab->sym_maximize       = NK_SYMBOL_triangle_DOWN;
     tab->padding            = nk_vec2(4,4);
     tab->spacing            = nk_vec2(4,4);
     tab->indent             = 10.0f;
@@ -22352,7 +22352,7 @@ nk_tree_state_base(struct nk_context *ctx, enum nk_tree_type type,
         else button = &style->tab.node_minimize_button;
     }
 
-    {/* draw triangle button */
+    {/* draw struct triangle button */
     sym.w = sym.h = style->font->height;
     sym.y = header.y + style->tab.padding.y;
     sym.x = header.x + style->tab.padding.x;
@@ -22538,7 +22538,7 @@ nk_tree_element_image_push_hashed_base(struct nk_context *ctx, enum nk_tree_type
             button = &style->tab.tab_minimize_button;
         else button = &style->tab.node_minimize_button;
     }
-    {/* draw triangle button */
+    {/* draw struct triangle button */
     sym.w = sym.h = style->font->height;
     sym.y = header.y + style->tab.padding.y;
     sym.x = header.x + style->tab.padding.x;
@@ -23751,15 +23751,15 @@ nk_draw_symbol(struct nk_command_buffer *out, enum nk_symbol_type type,
                 nk_fill_circle(out, nk_shrink_rect(content, 1), background);
         }
     } break;
-    case NK_SYMBOL_TRIANGLE_UP:
-    case NK_SYMBOL_TRIANGLE_DOWN:
-    case NK_SYMBOL_TRIANGLE_LEFT:
-    case NK_SYMBOL_TRIANGLE_RIGHT: {
+    case NK_SYMBOL_triangle_UP:
+    case NK_SYMBOL_triangle_DOWN:
+    case NK_SYMBOL_triangle_LEFT:
+    case NK_SYMBOL_triangle_RIGHT: {
         enum nk_heading heading;
         struct nk_vec2 points[3];
-        heading = (type == NK_SYMBOL_TRIANGLE_RIGHT) ? NK_RIGHT :
-            (type == NK_SYMBOL_TRIANGLE_LEFT) ? NK_LEFT:
-            (type == NK_SYMBOL_TRIANGLE_UP) ? NK_UP: NK_DOWN;
+        heading = (type == NK_SYMBOL_triangle_RIGHT) ? NK_RIGHT :
+            (type == NK_SYMBOL_triangle_LEFT) ? NK_LEFT:
+            (type == NK_SYMBOL_triangle_UP) ? NK_UP: NK_DOWN;
         nk_triangle_from_direction(points, content, 0, 0, heading);
         nk_fill_triangle(out, points[0].x, points[0].y, points[1].x, points[1].y,
             points[2].x, points[2].y, foreground);

@@ -24,45 +24,30 @@ static struct nk_glfw glfw = {0};
 static GLFWwindow *win;
 static struct nk_context *ctx;
 
-static int currentVertex = 0;
+static int width, height;
+static float aspect_ratio;
 
-static void TriangleListPanel(Triangle *tris, int numTris,
-		nk_bool *vertsSelected);
+static int vert_selected = 0;
+
+static void glfw_and_nk_init(void);
+static int triangle_list_setup(struct triangle *tris, int num_tris,
+		nk_bool *verts_is_selected);
+static void triangle_normals_render(struct triangle *tris, int num_tris);
+static void save_model_button(struct triangle *tris, int num_tris);
+static void load_model_button(struct triangle *tris, int num_tris);
+static void user_move_vertices_along_axis(struct triangle *tris);
+static void user_determine_selected_vertex(nk_bool *is_selected_arr,
+		int tri_ind, int vert_ind, int num_tris);
 
 int main(void)
 {
-	glfwInit();
-	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
-	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-
-	int width, height;
-	glfwGetMonitorWorkarea(glfwGetPrimaryMonitor(),
-			NULL, NULL, &width, &height);
-
-	float aspectRatio = (float)width / (float)height;
-
-	win = glfwCreateWindow(width, height, "3D Model Editor", NULL, NULL);
-	glfwMakeContextCurrent(win);
+	glfw_and_nk_init();
 	
-	glViewport(0, 0, width, height);
-	glewExperimental = 1;
-	glewInit();
-
-	ctx = nk_glfw3_init(&glfw, win, NK_GLFW3_INSTALL_CALLBACKS);
-	{
-		struct nk_font_atlas *atlas;
-		nk_glfw3_font_stash_begin(&glfw, &atlas);
-		nk_glfw3_font_stash_end(&glfw);
-	}
+	int num_tris = 1;
+	nk_bool *verts_is_selected = calloc(num_tris * 3, sizeof(nk_bool));
 	
-	struct nk_colorf bg = {0.10f, 0.18f, 0.24f, 1.0f};
-
-	int numTris = 1;
-	nk_bool *vertsSelected = calloc(numTris * 3, sizeof(nk_bool));
-	
-	Triangle *tris = calloc(numTris, sizeof(Triangle));
-	TriangleInitDefault(tris);
+	struct triangle *tris = calloc(num_tris, sizeof(struct triangle));
+	triangle_init_default(tris);
 
 	GLuint vao;
 	glGenVertexArrays(1, &vao);
@@ -72,7 +57,8 @@ int main(void)
 	glGenBuffers(1, &vbo);
 	glBindBuffer(GL_ARRAY_BUFFER, vbo);
 	glBufferData(GL_ARRAY_BUFFER,
-			sizeof(Triangle) * numTris, tris, GL_DYNAMIC_DRAW);
+			sizeof(struct triangle) * num_tris,
+			tris, GL_DYNAMIC_DRAW);
 	glEnableVertexAttribArray(0);
 	glEnableVertexAttribArray(1);
 	glVertexAttribPointer(0, 3, GL_FLOAT,
@@ -88,7 +74,7 @@ int main(void)
 	GLuint shader = shaderLoad();
 
 	Mat4 proj;
-	Mat4Perspective(proj, 60.0f, aspectRatio, 0.1f, 8.0f);
+	Mat4Perspective(proj, 60.0f, aspect_ratio, 0.1f, 8.0f);
 
 	// float timeLast = glfwGetTime();
 	while (!glfwWindowShouldClose(win))
@@ -102,9 +88,9 @@ int main(void)
 			glfwSetWindowShouldClose(win, GLFW_TRUE);
 
 		char vert_list_str[64];
-		sprintf(vert_list_str, "Triangle List: (%d)", numTris);
+		sprintf(vert_list_str, "struct triangle List: (%d)", num_tris);
 
-		TrianglesCalculateNormals(tris, numTris);
+		triangles_calc_normals(tris, num_tris);
 
 		nk_glfw3_new_frame(&glfw);
 
@@ -114,132 +100,58 @@ int main(void)
 			continue;
 
 		nk_layout_row_dynamic(ctx, 30, 2);
-		if(nk_button_label(ctx, "Add Triangle")) {
-			numTris++;
-			tris = realloc(tris, sizeof(Triangle) * numTris);
-			memset(tris + (numTris - 1), 0, sizeof(Triangle));
+		if(nk_button_label(ctx, "Add struct triangle")) {
+			num_tris++;
+			tris =
+			realloc(tris, sizeof(struct triangle) * num_tris);
+			memset(tris + (num_tris - 1), 0,
+				sizeof(struct triangle));
 
-			vertsSelected = realloc(
-					vertsSelected,
-					sizeof(nk_bool)
-					* 3 * numTris);
+			verts_is_selected = realloc(
+				verts_is_selected,
+				sizeof(nk_bool)
+				* 3 * num_tris);
 			
-			memset(vertsSelected, 0,
-					sizeof(nk_bool) * 3 * numTris);
+			memset(verts_is_selected, 0,
+					sizeof(nk_bool) * 3 * num_tris);
 		}
 
 		nk_layout_row_dynamic(ctx, 1024, 1);
 
-		TriangleListPanel(tris, numTris, vertsSelected);
+		if(nk_group_begin(ctx, "Triangle List", NK_WINDOW_BORDER)) {
+			num_tris = triangle_list_setup(tris,
+					num_tris, verts_is_selected);
+		}
 
 		glBindBuffer(GL_ARRAY_BUFFER, vbo);
-		glBufferData(GL_ARRAY_BUFFER, sizeof(Triangle) * numTris,
+		glBufferData(GL_ARRAY_BUFFER,
+				sizeof(struct triangle) * num_tris,
 				tris, GL_DYNAMIC_DRAW);
 		glBindBuffer(GL_ARRAY_BUFFER, 0);
 
 		nk_layout_row_dynamic(ctx, 30, 1);
 
-		static bool axisDownLast[3] = {0};
-		bool axisDownNow[3] = {
-			glfwGetKey(win, GLFW_KEY_X),
-			glfwGetKey(win, GLFW_KEY_Y),
-			glfwGetKey(win, GLFW_KEY_Z),
-		};
-
-		bool axisPress[3] = {
-			axisDownNow[0] && !axisDownLast[0],
-			axisDownNow[1] && !axisDownLast[1],
-			axisDownNow[2] && !axisDownLast[2],
-		};
-
-		memcpy(axisDownLast, axisDownNow, sizeof(bool) * 3);
-
-		static int mouseXOnPress = 0;
-		static bool isTranslating[3] = {0};
-		static float startPos;
-
-		for(int i = 0; i < 3; i++) {
-			double x;
-			glfwGetCursorPos(win, &x, NULL);
-
-			if(axisPress[i]) {
-				mouseXOnPress = (int)x;
-				startPos = tris->verts[currentVertex].pos[i];
-				isTranslating[i] = !isTranslating[i];
-			}
-
-			if(isTranslating[i]) {
-				tris->verts[currentVertex].pos[i] = startPos -
-					((x - mouseXOnPress) * -0.02f);
-			}
-		}
+		user_move_vertices_along_axis(tris);
 
 		char vsStr[512];
-		sprintf(vsStr, "Vertex Selected: %d", currentVertex);
+		sprintf(vsStr, "Vertex Selected: %d", vert_selected);
 		nk_label(ctx, vsStr, NK_TEXT_LEFT);
 
 		nk_layout_row_dynamic(ctx, 30, 3);
 		if(nk_button_label(ctx, "New Model")) {
-			numTris = 1;
-			tris = realloc(tris, numTris * sizeof(Triangle));
-			memset(tris, 0, sizeof(Triangle));
+			num_tris = 1;
+			tris = realloc(tris,
+					num_tris * sizeof(struct triangle));
+			memset(tris, 0, sizeof(struct triangle));
 		}
 
-		char save_txt[32];
-		static int save_timer = 0;
-
-		save_timer--;
-		if(save_timer < 0) {
-			save_timer = 0;
-		}
-
-		sprintf(save_txt, !save_timer ?
-				"Save Model" : "Model Saved!");
-		if(nk_button_label(ctx, save_txt)) {
-			FILE *out = fopen("out.mdl", "wb");
-			fwrite(tris, sizeof(Triangle), numTris, out);
-
-			printf("Wrote %ld bytes to 'out.mdl'.\n",
-					sizeof(Triangle) * numTris);
-			save_timer = 320;
-			fclose(out);
-		}
-
-		char load_txt[32];
-		static int load_timer = 0;
-
-		load_timer--;
-		if(load_timer < 0) {
-			load_timer = 0;
-		}
-
-		sprintf(load_txt, !load_timer ?
-				"Load Model" : "Model Loaded!");
-		if(nk_button_label(ctx, load_txt)) {
-			FILE *in = fopen("out.mdl", "rb");
-			if(in) {
-				load_timer = 320;
-				fseek(in, 0, SEEK_END);
-				long len = ftell(in);
-				numTris = len / sizeof(Triangle);
-				tris = realloc(tris,
-						numTris * sizeof(Triangle));
-
-				rewind(in);
-				fread(tris, sizeof(Triangle), numTris, in);
-
-				fclose(in);
-			} else {
-				fprintf(stderr, "Failed to open "
-						"file from "
-						"'out.mdl'.\n");
-			}
-		}
+		save_model_button(tris, num_tris);
+		load_model_button(tris, num_tris);
 
 		nk_layout_row_dynamic(ctx, 30, 1);
 
-		static nk_bool showNormals = 1;
-		nk_checkbox_label(ctx, "Show Normals", &showNormals);
+		static nk_bool is_showing_normals = 1;
+		nk_checkbox_label(ctx, "Show Normals", &is_showing_normals);
 
 		static nk_bool highlightVerts = 1;
 		nk_checkbox_label(ctx, "Highlight Vertices", &highlightVerts);
@@ -291,6 +203,7 @@ int main(void)
 		glEnable(GL_DEPTH_TEST);
 		glDepthFunc(GL_LESS);
 
+		struct nk_colorf bg = {0.10f, 0.18f, 0.24f, 1.0f};
 		glClearColor(bg.r, bg.g, bg.b, bg.a);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -299,73 +212,18 @@ int main(void)
 		shaderUniformMat4(shader, "model", model);
 		shaderUniformMat4(shader, "proj", proj);
 		shaderUniformMat4(shader, "view", view);
-		// shaderUniform3f(shader, "color", 1.0f, 0.5f, 0.25f);
-		glDrawArrays(GL_TRIANGLES, 0, numTris * 3);
+		glDrawArrays(GL_TRIANGLES, 0, num_tris * 3);
 
 		if(highlightVerts) {
-			// shaderUniform3f(shader, "color", 0.25f, 0.5f, 1.0f);
 			glPointSize(8.0f);
-			glDrawArrays(GL_POINTS, 0, numTris * 3);
+			glDrawArrays(GL_POINTS, 0, num_tris * 3);
 		}
 
 		/*
 		 * Visualising Normals
 		 */
-		if(showNormals) {
-			for(int i = 0; i < numTris; i++) {
-				Vertex *v = tris[i].verts;
-				Vertex line[2];
-
-				line[0].pos[0] =
-					(v[0].pos[0] +
-					 v[1].pos[0] +
-					 v[2].pos[0]) / 3.0f;
-
-				line[0].pos[1] =
-					(v[0].pos[1] +
-					 v[1].pos[1] +
-					 v[2].pos[1]) / 3.0f;
-
-				line[0].pos[2] =
-					(v[0].pos[2] +
-					 v[1].pos[2] +
-					 v[2].pos[2]) / 3.0f;
-
-				Vec3 normVec;
-				Vec3Copy(v->norm, normVec);
-
-				Vec3Copy(normVec, line->norm);
-				line->norm[0] = 1.0f - fabs(line->norm[0]);
-				line->norm[1] = 1.0f - fabs(line->norm[1]);
-				line->norm[2] = 1.0f - fabs(line->norm[2]);
-
-				memcpy(line + 1, line, sizeof(Vertex));
-				Vec3Scale(normVec, 0.2f);
-				Vec3Add(line->pos, normVec, line[1].pos);
-
-				GLuint va, vb;
-				glGenVertexArrays(1, &va);
-				glBindVertexArray(va);
-				glGenBuffers(1, &vb);
-				glBindBuffer(GL_ARRAY_BUFFER, vb);
-				glBufferData(GL_ARRAY_BUFFER,
-						sizeof(Vertex) * 2,
-						line, GL_STATIC_DRAW);
-				glEnableVertexAttribArray(0);
-				glEnableVertexAttribArray(1);
-				glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 
-						sizeof(Vertex),
-						(void *)offsetof(Vertex, pos));
-				glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 
-						sizeof(Vertex),
-						(void *)offsetof(Vertex, norm));
-				glBindBuffer(GL_ARRAY_BUFFER, 0);
-
-				glLineWidth(4.0f);
-				glDrawArrays(GL_LINES, 0, 2);
-				glDeleteBuffers(1, &vb);
-				glDeleteVertexArrays(1, &va);
-			}
+		if(is_showing_normals) {
+			triangle_normals_render(tris, num_tris);
 		}
 
 		glBindVertexArray(0);
@@ -377,64 +235,58 @@ int main(void)
 
 	shaderUnload(shader);
 	
-	free(vertsSelected);
+	free(verts_is_selected);
 	free(tris);
 	nk_glfw3_shutdown(&glfw);
 	glfwTerminate();
 	return 0;
 }
 
-static void TriangleListPanel(Triangle *tris, int numTris,
-		nk_bool *vertsSelected)
+static void glfw_and_nk_init(void)
 {
-	assert(tris);
-	assert(numTris);
-	assert(vertsSelected);
-	if(nk_group_begin(ctx, "Test", NK_WINDOW_BORDER)) {
-		for(int j = 0; j < numTris; j++) {
-			char vert_str[32];
-			sprintf(vert_str, "Triangle %d", j);
-			if(nk_tree_push(ctx, NK_TREE_NODE, vert_str,
-						NK_MAXIMIZED)) {
-				nk_layout_row_dynamic(ctx, 26, 4);
-				for(int k = 0; k < 3; k++) {
-				if(nk_selectable_label(ctx, "Position:",
-						NK_TEXT_LEFT,
-						vertsSelected + k +
-						(j * 3))) {
-					int totalSelected = 0;
-					for(int i = 0; i < 3 * numTris;
-							i++) {
-					totalSelected +=
-						vertsSelected[i];
-					}
+	glfwInit();
+	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
-					if(totalSelected > 1) {
-						memset(vertsSelected,
-								0,
-								sizeof(
-								nk_bool)
-								* 3 *
-								numTris)
-							;
-						
-						vertsSelected[(j * 3)
-							+ k] = 1;
-					}
+	glfwGetMonitorWorkarea(glfwGetPrimaryMonitor(),
+			NULL, NULL, &width, &height);
 
-					for(int i = 0; i < 3 * numTris;
-							i++) {
-					if(vertsSelected[i]) {
-						currentVertex = i;
-						break;
-					}
-					}
-				}
+	aspect_ratio = (float)width / (float)height;
+
+	win = glfwCreateWindow(width, height, "3D Model Editor", NULL, NULL);
+	glfwMakeContextCurrent(win);
+	
+	glewExperimental = 1;
+	glewInit();
+	glViewport(0, 0, width, height);
+
+	ctx = nk_glfw3_init(&glfw, win, NK_GLFW3_INSTALL_CALLBACKS);
+	{
+		struct nk_font_atlas *atlas;
+		nk_glfw3_font_stash_begin(&glfw, &atlas);
+		nk_glfw3_font_stash_end(&glfw);
+	}
+}
+
+static int triangle_list_setup(struct triangle *tris, int num_tris,
+		nk_bool *verts_is_selected)
+{
+	for(int j = 0; j < num_tris; j++) {
+		char vert_str[32];
+		sprintf(vert_str, "Tri %d", j);
+
+		if(nk_tree_push(ctx, NK_TREE_NODE, vert_str, NK_MAXIMIZED)) {
+			nk_layout_row_dynamic(ctx, 26, 4);
+
+			for(int k = 0; k < 3; k++) {
+				user_determine_selected_vertex(
+					verts_is_selected, j, k, num_tris);
 	
 				for(int i = 0; i < 3; i++) {
 					float *val_cur =
 					&tris[j].verts[k].pos[i];
-		
+	
 					const char *names[3] = {
 						"X", "Y", "Z"
 					};
@@ -444,67 +296,237 @@ static void TriangleListPanel(Triangle *tris, int numTris,
 							16.0f, 0.1f,
 							1.0f);
 				}
-				}
-	
-				nk_layout_row_dynamic(ctx, 26, 2);
-				if(nk_button_label(ctx, "Delete")) {
-					numTris--;
-					if(numTris) {
-						for(int i = j;
-							i < numTris + 1;
-								i++) {
-							memcpy(tris + i,
-								tris
-								+ i + 1,
-								sizeof(
-								Triangle
-								));
-						}
-	
-						tris = realloc(tris,
-							numTris *
-							sizeof(
-							Triangle));
-					} else {
-						memset(tris, 0,
-							sizeof(
-							Triangle));
-						numTris++;
-					}
-
-					vertsSelected = realloc(
-							vertsSelected,
-							sizeof(nk_bool)
-							* 3 * numTris);
-
-					memset(vertsSelected, 0,
-						sizeof(nk_bool) *
-						3 * numTris);
-				}
-
-				if(nk_button_label(ctx, "Duplicate")) {
-					numTris++;
-					tris = realloc(tris,
-						numTris *
-						sizeof(
-						Triangle));
-
-					for(int i = numTris - 1;
-							i > j;
-							i--) {
-						memcpy(tris + i,
-							tris + i - 1,
-							sizeof(Triangle)
-						      );
-					}
-				}
-	
-				nk_tree_pop(ctx);
 			}
 	
-		}
+			nk_layout_row_dynamic(ctx, 26, 2);
+			if(nk_button_label(ctx, "Delete")) {
+				num_tris--;
+				if(num_tris) {
+					for(int i = j;
+						i < num_tris + 1;
+							i++) {
+						memcpy(tris + i,
+							tris
+							+ i + 1,
+							sizeof(
+							struct triangle
+							));
+					}
+	
+					tris = realloc(tris,
+						num_tris *
+						sizeof(
+						struct triangle));
+				} else {
+					memset(tris, 0,
+						sizeof(
+						struct triangle));
+					num_tris++;
+				}
 
-		nk_group_end(ctx);
+				verts_is_selected = realloc(
+						verts_is_selected,
+						sizeof(nk_bool)
+						* 3 * num_tris);
+
+				memset(verts_is_selected, 0,
+					sizeof(nk_bool) *
+					3 * num_tris);
+			}
+
+			if(nk_button_label(ctx, "Duplicate")) {
+				num_tris++;
+				tris = realloc(tris,
+					num_tris *
+					sizeof(
+					struct triangle));
+
+				for(int i = num_tris - 1; i > j; i--) {
+					memcpy(tris + i, tris + i - 1,
+						sizeof(struct triangle));
+				}
+			}
+	
+			nk_tree_pop(ctx);
+		}
+	
 	}
 
+	nk_group_end(ctx);
+
+	return num_tris;
+}
+
+static void triangle_normals_render(struct triangle *tris, int num_tris)
+{
+	for(int i = 0; i < num_tris; i++) {
+		Vertex *v = tris[i].verts;
+		Vertex line[2];
+
+		line[0].pos[0] =
+			(v[0].pos[0] +
+			 v[1].pos[0] +
+			 v[2].pos[0]) / 3.0f;
+
+		line[0].pos[1] =
+			(v[0].pos[1] +
+			 v[1].pos[1] +
+			 v[2].pos[1]) / 3.0f;
+
+		line[0].pos[2] =
+			(v[0].pos[2] +
+			 v[1].pos[2] +
+			 v[2].pos[2]) / 3.0f;
+
+		Vec3 normVec;
+		Vec3Copy(v->norm, normVec);
+
+		Vec3Copy(normVec, line->norm);
+		line->norm[0] = 1.0f - fabs(line->norm[0]);
+		line->norm[1] = 1.0f - fabs(line->norm[1]);
+		line->norm[2] = 1.0f - fabs(line->norm[2]);
+
+		memcpy(line + 1, line, sizeof(Vertex));
+		Vec3Scale(normVec, 0.2f);
+		Vec3Add(line->pos, normVec, line[1].pos);
+
+		GLuint va, vb;
+		glGenVertexArrays(1, &va);
+		glBindVertexArray(va);
+		glGenBuffers(1, &vb);
+		glBindBuffer(GL_ARRAY_BUFFER, vb);
+		glBufferData(GL_ARRAY_BUFFER,
+				sizeof(Vertex) * 2,
+				line, GL_STATIC_DRAW);
+		glEnableVertexAttribArray(0);
+		glEnableVertexAttribArray(1);
+		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 
+				sizeof(Vertex),
+				(void *)offsetof(Vertex, pos));
+		glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 
+				sizeof(Vertex),
+				(void *)offsetof(Vertex, norm));
+		glBindBuffer(GL_ARRAY_BUFFER, 0);
+
+		glLineWidth(4.0f);
+		glDrawArrays(GL_LINES, 0, 2);
+		glDeleteBuffers(1, &vb);
+		glDeleteVertexArrays(1, &va);
+	}
+}
+
+static void save_model_button(struct triangle *tris, int num_tris)
+{
+	char save_txt[32];
+	static int save_timer = 0;
+
+	save_timer--;
+	if(save_timer < 0) {
+		save_timer = 0;
+	}
+
+	sprintf(save_txt, !save_timer ? "Save Model" : "Model Saved!");
+	if(nk_button_label(ctx, save_txt)) {
+		FILE *out = fopen("out.mdl", "wb");
+		fwrite(tris, sizeof(struct triangle), num_tris, out);
+
+		printf("Wrote %ld bytes to 'out.mdl'.\n",
+				sizeof(struct triangle) * num_tris);
+		save_timer = 320;
+		fclose(out);
+	}
+}
+
+static void load_model_button(struct triangle *tris, int num_tris)
+ {
+	char load_txt[32];
+	static int load_timer = 0;
+
+	load_timer--;
+	if(load_timer < 0) {
+		load_timer = 0;
+	}
+
+	sprintf(load_txt, !load_timer ? "Load Model" : "Model Loaded!");
+	if(nk_button_label(ctx, load_txt)) {
+		FILE *in = fopen("out.mdl", "rb");
+		if(in) {
+			load_timer = 320;
+			fseek(in, 0, SEEK_END);
+			long len = ftell(in);
+			num_tris = len / sizeof(struct triangle);
+			tris = realloc(tris, num_tris * sizeof(struct triangle));
+
+			rewind(in);
+			fread(tris, sizeof(struct triangle), num_tris, in);
+
+			fclose(in);
+		} else {
+			fprintf(stderr, "Failed to open file from 'out.mdl'.\n");
+		}
+	}
+ }
+
+static void user_move_vertices_along_axis(struct triangle *tris)
+{
+	static bool axisDownLast[3] = {0};
+	bool axisDownNow[3] = {
+		glfwGetKey(win, GLFW_KEY_X),
+		glfwGetKey(win, GLFW_KEY_Y),
+		glfwGetKey(win, GLFW_KEY_Z),
+	};
+
+	bool axisPress[3] = {
+		axisDownNow[0] && !axisDownLast[0],
+		axisDownNow[1] && !axisDownLast[1],
+		axisDownNow[2] && !axisDownLast[2],
+	};
+
+	memcpy(axisDownLast, axisDownNow, sizeof(bool) * 3);
+
+	static int mouseXOnPress = 0;
+	static bool isTranslating[3] = {0};
+	static float startPos;
+
+	for(int i = 0; i < 3; i++) {
+		double x;
+		glfwGetCursorPos(win, &x, NULL);
+
+		if(axisPress[i]) {
+			mouseXOnPress = (int)x;
+			startPos = tris->verts[vert_selected].pos[i];
+			isTranslating[i] = !isTranslating[i];
+		}
+
+		if(isTranslating[i]) {
+			tris->verts[vert_selected].pos[i] = startPos -
+				((x - mouseXOnPress) * -0.02f);
+		}
+	}
+}
+
+static void user_determine_selected_vertex(nk_bool *is_selected_arr,
+		int tri_ind, int vert_ind, int num_tris)
+{
+	if(nk_selectable_label(ctx, "Position:", NK_TEXT_LEFT,
+			is_selected_arr + vert_ind + (tri_ind * 3))) {
+		int totalSelected = 0;
+
+		for(int i = 0; i < 3 * num_tris; i++) {
+			totalSelected += is_selected_arr[i];
+		}
+
+		if(totalSelected > 1) {
+			memset(is_selected_arr, 0,
+					sizeof(nk_bool) * 3 * num_tris);
+			is_selected_arr[(tri_ind * 3) + vert_ind] = 1;
+		}
+
+		/*
+		 * TODO: Might not work
+		 */
+		for(int i = 0; i < 3 * num_tris && !is_selected_arr[i]; i++) {
+			vert_selected = i;
+		}
+	}
 }

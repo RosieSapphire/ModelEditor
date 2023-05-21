@@ -1,13 +1,13 @@
-#ifndef _TRIANGLE_H_
-#define _TRIANGLE_H_
+#ifndef TRIANGLE_H
+#define TRIANGLE_H
 
 #include "vertex.h"
 
-typedef struct {
+struct triangle {
 	Vertex verts[3];
-} Triangle;
+};
 
-void TrianglesCalculateNormals(Triangle *tris, int numTris);
-void TriangleInitDefault(Triangle *t);
+void triangle_init_default(struct triangle *t);
+void triangles_calc_normals(struct triangle *tris, int num_tris);
 
 #endif
