@@ -3,12 +3,11 @@ CFLAGS=-std=c99 -Wall -Wextra -g3
 INC=-Iinclude
 LIB=$(shell pkg-config --libs glfw3) $(shell pkg-config --libs glew) -lm
 
-
 SRC=$(wildcard src/*.c)
 OBJ=$(patsubst src/%.c, %.o, $(SRC))
 BIN=model_editor
 
-all: $(BIN)
+default: $(BIN)
 
 $(BIN): $(OBJ)
 	$(CC) $(CFLAGS) $^ -o $@ $(LIB)
@@ -19,4 +18,3 @@ $(BIN): $(OBJ)
 
 clean:
 	rm -f $(BIN) *.o
-	clear

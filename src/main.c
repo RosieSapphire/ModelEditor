@@ -5,6 +5,8 @@
 
 #include "shader.h"
 #include "triangle.h"
+#include "config.h"
+#include "mat4.h"
 
 #define NK_INCLUDE_DEFAULT_FONT
 #define NK_INCLUDE_DEFAULT_ALLOCATOR
@@ -15,34 +17,32 @@
 #include "nuklear.h"
 #include "nuklear_glfw_gl3.h"
 
-#include "mat4.h"
-
-#define MAX_VERTEX_BUFFER 512 * 1024
-#define MAX_ELEMENT_BUFFER 128 * 1024
-
 static struct nk_glfw glfw = {0};
 static GLFWwindow *win;
 static struct nk_context *ctx;
-
 static int width, height;
 static float aspect_ratio;
-
 static int vert_selected = 0;
+static nk_bool show_normals = 1;
+static nk_bool highlight_verts = 1;
+static nk_bool backface_culling = 1;
+static float xLook = 0.0f, yLook = 0.0f;
+static double mouseXLast = 0, mouseYLast = 0;
 
 static void glfw_and_nk_init(void);
 static int triangle_list_setup(struct triangle *tris, int num_tris,
-		nk_bool *verts_is_selected);
+			       nk_bool *verts_is_selected);
 static void triangle_normals_render(struct triangle *tris, int num_tris);
 static void save_model_button(struct triangle *tris, int num_tris);
 static void load_model_button(struct triangle *tris, int num_tris);
 static void user_move_vertices_along_axis(struct triangle *tris);
-static void user_determine_selected_vertex(nk_bool *is_selected_arr,
-		int tri_ind, int vert_ind, int num_tris);
+static void user_determine_selected_vertex(nk_bool *is_selected_arr, int tri_ind,
+					   int vert_ind, int num_tris);
 
 int main(void)
 {
 	glfw_and_nk_init();
-	
+
 	int num_tris = 1;
 	nk_bool *verts_is_selected = calloc(num_tris * 3, sizeof(nk_bool));
 	
@@ -77,7 +77,7 @@ int main(void)
 	Mat4Perspective(proj, 60.0f, aspect_ratio, 0.1f, 8.0f);
 
 	// float timeLast = glfwGetTime();
-	while (!glfwWindowShouldClose(win))
+	while(!glfwWindowShouldClose(win))
 	{
 		// float timeNow = glfwGetTime();
 		// float deltaTime = timeNow - timeLast;
@@ -150,22 +150,15 @@ int main(void)
 
 		nk_layout_row_dynamic(ctx, 30, 1);
 
-		static nk_bool is_showing_normals = 1;
-		nk_checkbox_label(ctx, "Show Normals", &is_showing_normals);
-
-		static nk_bool highlightVerts = 1;
-		nk_checkbox_label(ctx, "Highlight Vertices", &highlightVerts);
-
-		static nk_bool backfaceCulling = 1;
-		nk_checkbox_label(ctx, "Backface Culling", &backfaceCulling);
+		nk_checkbox_label(ctx, "Show Normals", &show_normals);
+		nk_checkbox_label(ctx, "Highlight Vertices", &highlight_verts);
+		nk_checkbox_label(ctx, "Backface Culling", &backface_culling);
 
 		nk_layout_row_dynamic(ctx, 30, 3);
-		static float xLook = 0.0f, yLook = 0.0f;
 		if(nk_button_label(ctx, "Reset Rotation")) {
 			xLook = yLook = 0.0f;
 		}
 
-		static double mouseXLast = 0, mouseYLast = 0;
 		double mouseXNow, mouseYNow;
 		glfwGetCursorPos(win, &mouseXNow, &mouseYNow);
 		double mouseXDelta = (mouseXNow - mouseXLast) * 0.01;
@@ -194,7 +187,7 @@ int main(void)
 		
 		glDisable(GL_CULL_FACE);
 
-		if(backfaceCulling) {
+		if(backface_culling) {
 			glEnable(GL_CULL_FACE);
 			glCullFace(GL_BACK);
 			glFrontFace(GL_CCW);
@@ -214,7 +207,7 @@ int main(void)
 		shaderUniformMat4(shader, "view", view);
 		glDrawArrays(GL_TRIANGLES, 0, num_tris * 3);
 
-		if(highlightVerts) {
+		if(highlight_verts) {
 			glPointSize(8.0f);
 			glDrawArrays(GL_POINTS, 0, num_tris * 3);
 		}
@@ -222,14 +215,14 @@ int main(void)
 		/*
 		 * Visualising Normals
 		 */
-		if(is_showing_normals) {
+		if(show_normals) {
 			triangle_normals_render(tris, num_tris);
 		}
 
 		glBindVertexArray(0);
 
 		nk_glfw3_render(&glfw, NK_ANTI_ALIASING_ON,
-				MAX_VERTEX_BUFFER, MAX_ELEMENT_BUFFER);
+				CONF_VERT_BUF_MAX, CONF_ELEM_BUF_MAX);
 		glfwSwapBuffers(win);
 	}
 
@@ -262,11 +255,10 @@ static void glfw_and_nk_init(void)
 	glViewport(0, 0, width, height);
 
 	ctx = nk_glfw3_init(&glfw, win, NK_GLFW3_INSTALL_CALLBACKS);
-	{
-		struct nk_font_atlas *atlas;
-		nk_glfw3_font_stash_begin(&glfw, &atlas);
-		nk_glfw3_font_stash_end(&glfw);
-	}
+
+	struct nk_font_atlas *atlas;
+	nk_glfw3_font_stash_begin(&glfw, &atlas);
+	nk_glfw3_font_stash_end(&glfw);
 }
 
 static int triangle_list_setup(struct triangle *tris, int num_tris,
@@ -505,8 +497,8 @@ static void user_move_vertices_along_axis(struct triangle *tris)
 	}
 }
 
-static void user_determine_selected_vertex(nk_bool *is_selected_arr,
-		int tri_ind, int vert_ind, int num_tris)
+static void user_determine_selected_vertex(nk_bool *is_selected_arr, int tri_ind,
+					   int vert_ind, int num_tris)
 {
 	if(nk_selectable_label(ctx, "Position:", NK_TEXT_LEFT,
 			is_selected_arr + vert_ind + (tri_ind * 3))) {
