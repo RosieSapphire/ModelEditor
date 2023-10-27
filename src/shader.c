@@ -7,13 +7,13 @@ GLuint shaderLoad(void)
 	const char *vertSrc = 
 		"#version 330\n"
 		"layout(location = 0) in vec3 a_pos;\n"
-		"layout(location = 1) in vec3 a_norm;\n"
+		"layout(location = 1) in vec2 a_uv;\n"
+		"layout(location = 2) in vec3 a_norm;\n"
 		"uniform mat4 proj;\n"
 		"uniform mat4 view;\n"
-		"uniform mat4 model;\n"
 		"out vec3 norm;\n"
 		"void main() {\n"
-		"gl_Position = proj * view * model * vec4(a_pos, 1.0);\n"
+		"gl_Position = proj * view * vec4(a_pos, 1.0);\n"
 		"norm = a_norm;\n"
 		"}\n";
 
@@ -64,10 +64,10 @@ void shaderUse(GLuint s)
 	glUseProgram(s);
 }
 
-void shaderUniformMat4(GLuint s, const char *uni, Mat4 val)
+void shaderUniformMat4(GLuint s, const char *uni, const float val[4][4])
 {
 	glUniformMatrix4fv(glGetUniformLocation(s, uni), 1, GL_FALSE,
-			(const float *)val);
+		    (const float *)val);
 }
 
 void shaderUniform3f(GLuint s, const char *uni, float x, float y, float z)

@@ -1,11 +1,8 @@
-#ifndef _VERTEX_H_
-#define _VERTEX_H_
-
-#include "vec3.h"
+#ifndef VERTEX_H_
+#define VERTEX_H_
 
 typedef struct {
-	Vec3 pos;
-	Vec3 norm;
-} Vertex;
+	float pos[3], uv[2], norm[3];
+} vertex_t;
 
-#endif
+#endif /* VERTEX_H_ */
