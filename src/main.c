@@ -26,8 +26,8 @@ static int vert_selected = 0;
 static nk_bool show_normals = 1;
 static nk_bool highlight_verts = 1;
 static nk_bool backface_culling = 1;
-static float xLook = 0.0f, yLook = 0.0f;
-static double mouseXLast = 0, mouseYLast = 0;
+static float look[2] = {0, 0};
+static double mouse_last[2] = {0, 0};
 
 static void glfw_and_nk_init(void);
 static int triangle_list_setup(struct triangle *tris, int num_tris,
@@ -155,23 +155,25 @@ int main(void)
 		nk_checkbox_label(ctx, "Backface Culling", &backface_culling);
 
 		nk_layout_row_dynamic(ctx, 30, 3);
-		if(nk_button_label(ctx, "Reset Rotation")) {
-			xLook = yLook = 0.0f;
-		}
+		if(nk_button_label(ctx, "Reset Rotation"))
+			look[0] = look[1] = 0.0f;
 
-		double mouseXNow, mouseYNow;
-		glfwGetCursorPos(win, &mouseXNow, &mouseYNow);
-		double mouseXDelta = (mouseXNow - mouseXLast) * 0.01;
-		double mouseYDelta = (mouseYNow - mouseYLast) * 0.01;
-		mouseXLast = mouseXNow;
-		mouseYLast = mouseYNow;
+		double mouse_now[2];
+		glfwGetCursorPos(win, mouse_now + 0, mouse_now + 1);
+		double mouse_delta[2] = {
+			(mouse_now[0] - mouse_last[0]) * 0.01,
+			(mouse_now[1] - mouse_last[1]) * 0.01,
+		};
+
+		mouse_last[0] = mouse_now[0];
+		mouse_last[1] = mouse_now[1];
 
 		bool rightClickDownNow =
 			glfwGetMouseButton(win, GLFW_MOUSE_BUTTON_RIGHT);
 
 		if(rightClickDownNow) {
-			xLook += mouseXDelta;
-			yLook += mouseYDelta;
+			look[0] += mouse_delta[0];
+			look[1] += mouse_delta[1];
 		}
 
 		nk_end(ctx);
@@ -182,8 +184,8 @@ int main(void)
 
 		Mat4 model;
 		Mat4Identity(model);
-		Mat4RotateY(model, xLook);
-		Mat4RotateX(model, yLook);
+		Mat4RotateY(model, look[0]);
+		Mat4RotateX(model, look[1]);
 		
 		glDisable(GL_CULL_FACE);
 
